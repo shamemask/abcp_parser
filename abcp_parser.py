@@ -1,13 +1,12 @@
 
 from selenium.webdriver.common.by import By
 
-from models import CatalogItem, save_catalog_data_to_db
-from uni_parser.universal_parser_firefox import WebsiteParser
+from .models import CatalogItem, save_catalog_data_to_db
+from .uni_parser.universal_parser_firefox import WebsiteParser
 
 # Ссылка на сайт
 url_to_parse = "https://avtosnab161.ru/All_catalog"
-# Путь к файлу geckodriver
-geckodriver_path = 'C:\Windows\System32\geckodriver.exe'
+
 
 
 def abcp_parser(avtosnab161_url):
@@ -34,9 +33,12 @@ def abcp_parser(avtosnab161_url):
         catalog_link = []
         for element in result_elements:
             catalog_link.append(element.get_attribute('href'))
+        print(catalog_link)
 
-
-    for link in catalog_link:
+    for i, link in enumerate(catalog_link):
+        if i < 0:
+            continue
+        print(link)
         with WebsiteParser(link) as parser:
             tags_and_attributes2 = [
                 {'by': 'class', 'value': 'item'},
@@ -48,8 +50,12 @@ def abcp_parser(avtosnab161_url):
                     {'by': 'class', 'value': 'article-image'},
                     {'by': 'tag', 'value': 'img'},
                 ]
-                article_image = element2.find_element(By.CLASS_NAME, 'article-image')
-                image_link = article_image.find_element(By.TAG_NAME, 'img').get_attribute('src')
+                article_images = element2.find_elements(By.CLASS_NAME, 'article-image')
+                image_link = ''
+                if article_images:
+                    image_links = article_images[0].find_elements(By.TAG_NAME, 'img')
+                    if image_links:
+                        image_link = image_links[0].get_attribute('src')
                 articleDesc = element2.find_element(By.CLASS_NAME, 'articleDesc')
                 articleDescATags = articleDesc.find_elements(By.TAG_NAME, 'a')
                 brandName = articleDescATags[0].text
@@ -59,22 +65,25 @@ def abcp_parser(avtosnab161_url):
                 depiction = articleDescATags[2].text
                 depictionLink = articleDescATags[2].get_attribute('href')
                 catalog_data.append([image_link, brandName, index, indexSearch, depiction, depictionLink])
-
+                print([image_link, brandName, index, indexSearch, depiction, depictionLink])
         for i in range(len(catalog_data)):
             depictionLink = catalog_data[i][5]
             with WebsiteParser(depictionLink) as parser3:
-                tags_and_attributes4 = [
-                    {'by': 'class', 'value': 'article-image'},
-                    {'by': 'class', 'value': 'goodsInfoDescr'},
-                    {'by': 'class', 'value': 'characteristicsListRow'},
-                ]
-                result_elements3 = parser3.find_elements(tags_and_attributes4)
-                catalog_data[i].append(result_elements3[0].find_element(By.TAG_NAME, 'img').get_attribute('src'))
-                catalog_data[i].append(result_elements3[1].text)
-                catalog_data[i].append(result_elements3[-1].text)
+                print('Описание',depictionLink)
 
+                image = ''
+                images = parser3.find_elements([{'by': 'tag', 'value': 'img'}])
+                if images:
+                    image = images[0].get_attribute('src')
+                InfoDescr = parser3.find_elements([{'by': 'class', 'value': 'goodsInfoDescr'}])[0].text
+                characteristicsListRow = parser3.find_elements([{'by': 'class', 'value': 'characteristicsListRow'}])[0].text
+                catalog_data[i].append(image)
+                catalog_data[i].append(InfoDescr)
+                catalog_data[i].append(characteristicsListRow)
+                print([image, InfoDescr, characteristicsListRow])
         # Сохраняем данные в базу данных Django
         save_catalog_data_to_db(catalog_data)
+        print(link, 'Сохранено')
 
 
 if __name__ == '__main__':
